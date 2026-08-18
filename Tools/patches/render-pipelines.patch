@@ -1,0 +1,56 @@
+diff --git a/com.unity.render-pipelines.core@6a60abc179f8/Runtime/Upscaling/IUpscaler.cs b/com.unity.render-pipelines.core@6a60abc179f8/Runtime/Upscaling/IUpscaler.cs
+index c4fc994..688bc09 100644
+--- a/com.unity.render-pipelines.core@6a60abc179f8/Runtime/Upscaling/IUpscaler.cs
++++ b/com.unity.render-pipelines.core@6a60abc179f8/Runtime/Upscaling/IUpscaler.cs
+@@ -25,6 +25,18 @@ namespace UnityEngine.Rendering
+         /// </summary>
+         bool IsTemporalUpscaler();
+ 
++        // BEGIN SGSR MODIFICATION: Allow upscalers to opt out of CopyDepth and MotionVector passes
++        // without changing IsTemporalUpscaler() (e.g. SGSR 1.0 needs IsTemporalUpscaler()==true to
++        // activate the upscaler post-process path but is spatial and needs neither pass).
++        /// <summary>
++        /// Returns true if the upscaler requires motion vectors and depth textures.
++        /// Spatial upscalers that return true for IsTemporalUpscaler() only to activate the
++        /// upscaler post-process path should override this to return false, which prevents
++        /// the CopyDepth and MotionVector render passes from running unnecessarily.
++        /// </summary>
++        bool RequiresMotionVectors();
++        // END SGSR MODIFICATION
++
+         /// <summary>
+         /// Returns true if the upscaler supports XR rendering.
+         /// </summary>
+@@ -46,6 +58,9 @@ namespace UnityEngine.Rendering
+     {
+         public abstract string GetName();
+         public abstract bool IsTemporalUpscaler();
++        // BEGIN SGSR MODIFICATION
++        public virtual bool RequiresMotionVectors() { return IsTemporalUpscaler(); }
++        // END SGSR MODIFICATION
+ 
+         public virtual UpscalerOptions GetOptions() { return null; }
+         public virtual bool IsSupportedXR() { return false; }
+diff --git a/com.unity.render-pipelines.universal@0c5162adfb45/Runtime/UniversalRendererRenderGraph.cs b/com.unity.render-pipelines.universal@0c5162adfb45/Runtime/UniversalRendererRenderGraph.cs
+index 557377d..df9788c 100644
+--- a/com.unity.render-pipelines.universal@0c5162adfb45/Runtime/UniversalRendererRenderGraph.cs
++++ b/com.unity.render-pipelines.universal@0c5162adfb45/Runtime/UniversalRendererRenderGraph.cs
+@@ -604,7 +604,17 @@ namespace UnityEngine.Rendering.Universal
+ 
+             bool isCameraTargetOffscreenDepth = cameraData.camera.targetTexture != null && cameraData.camera.targetTexture.format == RenderTextureFormat.Depth;
+ 
+-            RenderPassInputSummary renderPassInputs = GetRenderPassInputs(cameraData.IsTemporalAAEnabled(), postProcessingData.isEnabled, cameraData.isSceneViewCamera, m_RenderingLayerProvidesByDepthNormalPass, activeRenderPassQueue, m_MotionVectorPass);
++            // BEGIN SGSR MODIFICATION: Skip CopyDepth and MotionVector passes for upscalers that
++            // return RequiresMotionVectors()==false (e.g. SGSR 1.0 spatial upscaler).
++            bool isTemporalAAEnabledForInputs = cameraData.IsTemporalAAEnabled();
++#if ENABLE_UPSCALER_FRAMEWORK
++            if (isTemporalAAEnabledForInputs && postProcessingData.activeUpscaler != null && !postProcessingData.activeUpscaler.RequiresMotionVectors())
++            {
++                isTemporalAAEnabledForInputs = false;
++            }
++#endif // ENABLE_UPSCALER_FRAMEWORK
++            RenderPassInputSummary renderPassInputs = GetRenderPassInputs(isTemporalAAEnabledForInputs, postProcessingData.isEnabled, cameraData.isSceneViewCamera, m_RenderingLayerProvidesByDepthNormalPass, activeRenderPassQueue, m_MotionVectorPass);
++            // END SGSR MODIFICATION
+ 
+             bool applyPostProcessing = cameraData.postProcessEnabled && m_PostProcess != null;
+             bool requireDepthTexture = RequireDepthTexture(cameraData, in renderPassInputs, applyPostProcessing);

@@ -1,0 +1,83 @@
+//============================================================================================================
+//
+//
+//                  Copyright (c) 2026 Qualcomm Innovation Center, Inc. All rights reserved.
+//                              SPDX-License-Identifier: BSD-3-Clause
+//
+//============================================================================================================
+
+#pragma kernel MainCS
+
+#include "sgsr2cs_common.hlsl"
+
+Texture2D<float4>   Input;
+RWTexture2D<half4>  UpscaledOutput;
+
+half max3(half a, half b, half c) { return max(a, max(b, c)); }
+half min3(half a, half b, half c) { return min(a, min(b, c)); }
+
+#define GSR_RCAS_LIMIT (0.25-(1.0/16.0))
+
+void CurrFilter(uint2 pos)
+{
+    int2 sp = int2(pos);
+    half3 b = (half3)Input[sp + int2(0, -1)].rgb;
+    half3 f = (half3)Input[sp + int2(1, 0)].rgb;
+    half3 min4YCoCg = min(b, f);
+    half3 max4YCoCg = max(b, f);
+    half3 h = (half3)Input[sp + int2(0, 1)].rgb;
+    min4YCoCg = min(min4YCoCg, h);
+    max4YCoCg = max(max4YCoCg, h);
+    half3 d = (half3)Input[sp + int2(-1, 0)].rgb;
+    min4YCoCg = min(min4YCoCg, d);
+    max4YCoCg = max(max4YCoCg, d);
+
+    half3 hitMinYCoCg = min4YCoCg * rcp(max4YCoCg * half3(4.0, 4.0, 4.0));
+    half3 hitMaxYCoCg = (half3(1.0, 1.0, 1.0) - max4YCoCg) * rcp(half3(4.0, 4.0, 4.0) * min4YCoCg - half3(4.0, 4.0, 4.0));
+    half3 lobeYCoCg   = max(-hitMinYCoCg, hitMaxYCoCg);
+
+    half lobe = max(half(-GSR_RCAS_LIMIT), min(max3(lobeYCoCg.x, lobeYCoCg.y, lobeYCoCg.z), half(0.0))) * Sharpness;
+
+    half3 e = (half3)Input[sp].rgb;
+
+    half lumax2_b   = dot(b.xyz, half3(0.5, 1.0, 0.5));
+    half lumax2_f   = dot(f.xyz, half3(0.5, 1.0, 0.5));
+    half lumax2_h   = dot(h.xyz, half3(0.5, 1.0, 0.5));
+    half lumax2_d   = dot(d.xyz, half3(0.5, 1.0, 0.5));
+    half lumaCenter = dot(e.xyz, half3(0.5, 1.0, 0.5));
+
+    half4 luma4 = half4(lumax2_b, lumax2_f, lumax2_h, lumax2_d);
+    half nz = dot(luma4, half4(0.25, 0.25, 0.25, 0.25)) - lumaCenter;
+    nz = saturate(abs(nz) * rcp(max(max3(max3(luma4.x, luma4.y, luma4.z), luma4.w, lumaCenter) - min3(min3(luma4.x, luma4.y, luma4.z), luma4.w, lumaCenter), (half)FLT_FP16_MIN)));
+    nz = half(-0.5) * nz + half(1.0);
+
+    lobe *= nz;
+
+    half rcpL  = rcp(half(4.0) * lobe + half(1.0));
+    half pixY  = (dot(half4(b.x, d.x, h.x, f.x), half4(lobe, lobe, lobe, lobe)) + e.x) * rcpL;
+    half pixCo = (dot(half4(b.y, d.y, h.y, f.y), half4(lobe, lobe, lobe, lobe)) + e.y) * rcpL;
+    half pixCg = (dot(half4(b.z, d.z, h.z, f.z), half4(lobe, lobe, lobe, lobe)) + e.z) * rcpL;
+
+    UpscaledOutput[pos] = half4(pixY, pixCo, pixCg, 1.0);
+}
+
+void sharpen(uint2 DisThreadID)
+{
+    CurrFilter(DisThreadID);
+}
+
+#define TILE_SIZE_X 16
+#define TILE_SIZE_Y 8
+
+[numthreads(TILE_SIZE_X, TILE_SIZE_Y, 1)]
+void MainCS(uint2 dispatchThreadID : SV_DispatchThreadID)
+{
+    int2 DisThreadID = (int2)dispatchThreadID;
+
+    if (any(DisThreadID >= (int2)OutputInfo_ViewportSize))
+    {
+        return;
+    }
+
+    sharpen(dispatchThreadID);
+}

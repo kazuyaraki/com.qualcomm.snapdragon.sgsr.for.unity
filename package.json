@@ -1,0 +1,25 @@
+{
+  "name": "com.qualcomm.snapdragon.sgsr.for.unity",
+  "version": "1.0.0",
+  "displayName": "Snapdragon Game Super Resolution",
+  "description": "SGSR upscaling for Unity URP",
+  "unity": "6000.3",
+  "dependencies": {
+    "com.unity.render-pipelines.core": "17.3.0",
+    "com.unity.render-pipelines.universal": "17.3.0"
+  },
+  "keywords": [
+    "graphics",
+    "upscale",
+    "performance",
+    "urp",
+    "mobile",
+    "gsr",
+    "sgsr",
+    "qualcomm"
+  ],
+  "author": {
+    "name": "Snapdragon Game Studios",
+    "url": "https://www.qualcomm.com/developer/snapdragon-game-toolkit"
+  }
+}

@@ -1,0 +1,170 @@
+//============================================================================================================
+//
+//
+//                  Copyright (c) 2026 Qualcomm Innovation Center, Inc. All rights reserved.
+//                              SPDX-License-Identifier: BSD-3-Clause
+//
+//============================================================================================================
+
+/*
+**
+** reference from
+https://github.com/GPUOpen-Effects/FidelityFX-FSR2/blob/master/src/ffx-fsr2-api/shaders/ffx_fsr2_reconstruct_dilated_velocity_and_previous_depth.h
+https://github.com/GPUOpen-Effects/FidelityFX-FSR/blob/master/ffx-fsr/ffx_fsr1.h
+https://gpuopen.com/fidelityfx-superresolution-2/
+under MIT license
+*/
+
+#pragma kernel MainCS
+
+#include "sgsr2cs_common.hlsl"
+
+#define GSR_OPTION_INVERTED_DEPTH (1)
+#define SIMPLIFIED_LUMA_CALCULATION (1)
+#define GATHER_FINDNEARESTDEPTH (1)
+
+// Input textures kept as float: cross-compilation safety and URP depth is 32-bit.
+Texture2D<float2> InputVelocity;
+Texture2D<float>  InputDepth;
+Texture2D<float4> InputColor;
+
+SamplerState PointClamp;
+RWTexture2D<half4> YCoCgLuma;
+RWTexture2D<half4> DilatedMotionDepthLuma;
+
+
+half ComputeLuma(half3 fRgb)
+{
+    half luma = dot(Tonemap(fRgb), half3(0.2126, 0.7152, 0.0722));
+#if SIMPLIFIED_LUMA_CALCULATION
+    return pow(abs(luma), half(1.0 / 18.0));
+#else
+    half percievedLuma = 0.0;
+    if (luma < half(216.0 / 24389.0))
+    {
+        percievedLuma = luma * half(24389.0 / 27.0);
+    }
+    else
+    {
+        percievedLuma = pow(luma, 1.0 / 3.0) * 116.0 - 16.0;
+    }
+    return pow(percievedLuma * 0.01, half(1.0 / 6.0));
+#endif // SIMPLIFIED_LUMA_CALCULATION
+}
+
+
+#if GATHER_FINDNEARESTDEPTH
+
+half FindNearestDepth(int2 iPxPos, int2 iPxSize, out int2 iNearestDepthCoord)
+{
+    float2 gatherCoord = (float2(iPxPos.x, iPxPos.y) + float2(0.5, 0.5) /* iPxPos is middle*/) * InputInfo_ViewportSizeInverse;
+    half fDepths[9];
+    half4 gDepths = InputDepth.GatherRed(PointClamp, gatherCoord, int2(0, 0));
+    fDepths[0] = gDepths.x;
+    fDepths[1] = gDepths.y;
+    fDepths[2] = gDepths.z;
+    fDepths[3] = gDepths.w;
+    gDepths = InputDepth.GatherRed(PointClamp, gatherCoord, int2(-1, -1));
+
+    fDepths[4] = gDepths.x;
+    //fDepths[3] = gDepths.y;	// would be same as fDepths[3] - ie center
+    fDepths[5] = gDepths.z;
+    fDepths[6] = gDepths.w;
+
+    fDepths[7] = InputDepth.GatherRed(PointClamp, gatherCoord, int2(0, -1)).z;
+
+    fDepths[8] = InputDepth.GatherRed(PointClamp, gatherCoord, int2(-1, 0)).x;
+
+    half fNearestDepth;
+    const int iSampleCount = 9;
+    const int2 iSampleOffsets[iSampleCount] = {
+        int2(0, 1),
+        int2(1, 1),
+        int2(1, 0),
+        int2(0, 0),
+
+        int2(-1, 0),
+        //int2(0, 0),
+        int2(0, -1),
+        int2(-1, -1),
+
+        int2(1, -1),	// top right
+        int2(-1, 1),	// bottom left
+    };
+
+    int iNearestIndex = 0;
+
+    fNearestDepth = fDepths[0];
+    for (int iSampleIndex = 1; iSampleIndex < iSampleCount; ++iSampleIndex)
+    {
+        //if (all(iPos < iPxSize))
+        {
+            half fNdDepth = fDepths[iSampleIndex].x;
+        #if GSR_OPTION_INVERTED_DEPTH
+            if (fNdDepth > fNearestDepth)
+        #else
+            if (fNdDepth < fNearestDepth)
+        #endif // GSR_OPTION_INVERTED_DEPTH
+            {
+                fNearestDepth = fNdDepth;
+                iNearestIndex = iSampleIndex;
+            }
+        }
+    }
+
+    iNearestDepthCoord = iPxPos + iSampleOffsets[iNearestIndex];
+
+    return fNearestDepth;
+}
+
+
+#endif // GATHER_FINDNEARESTDEPTH
+
+
+void Convert(int2 DisThreadID)
+{
+    int2 fNearestDepthCoord;
+    half NearestZ = FindNearestDepth(DisThreadID, (int2)InputInfo_ViewportSize, fNearestDepthCoord);
+
+    float2 EncodedVelocity = InputVelocity[fNearestDepthCoord].xy;
+
+    float2 motion;
+    if (any(EncodedVelocity))
+    {
+        motion = float2(EncodedVelocity.x, -EncodedVelocity.y) * 2.0f;
+    }
+    else
+    {
+        float2 ViewportUV = (float2(fNearestDepthCoord) + 0.5) * InputInfo_ViewportSizeInverse;
+        float2 ScreenPos = float2(2 * ViewportUV.x - 1, 1 - 2 * ViewportUV.y);
+        float3 Position = float3(ScreenPos, NearestZ);
+        float4 CurClip = float4(Position, 1);
+        float4 PreClip = mul(CurClip, ReClipToPrevClip);
+        float2 PreScreen = PreClip.xy / PreClip.w;
+        motion = (Position.xy - PreScreen);
+    }
+    motion *= float2(-0.5, 0.5);
+    half3 ColorPostAlpha = (half3)InputColor[DisThreadID].xyz;
+
+    half3 ycocg = RGBToYCoCg(ColorPostAlpha);
+    YCoCgLuma[DisThreadID] = half4(ycocg, 0.0);
+    half3 fPreparedRgb = max(half3(0, 0, 0), ColorPostAlpha);
+    half fLuma = ComputeLuma(fPreparedRgb);
+    DilatedMotionDepthLuma[DisThreadID] = half4(motion, NearestZ, fLuma);
+}
+
+#define TILE_SIZE_X 16
+#define TILE_SIZE_Y 8
+
+[numthreads(TILE_SIZE_X, TILE_SIZE_Y, 1)]
+void MainCS(uint2 dispatchThreadID : SV_DispatchThreadID)
+{
+    int2 DisThreadID = (int2)dispatchThreadID;
+
+    if (any(DisThreadID >= (int2)InputInfo_ViewportSize))
+    {
+        return;
+    }
+
+    Convert(DisThreadID);
+}
