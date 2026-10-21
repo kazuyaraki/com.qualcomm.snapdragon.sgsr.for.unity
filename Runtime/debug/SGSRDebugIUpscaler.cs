@@ -24,12 +24,12 @@ using UnityEditor;
 static class RegisterSGSRDebug
 {
     static RegisterSGSRDebug() =>
-        UpscalerRegistry.Register<Qualcomm.Snapdragon.SGSR.SGSRDebugIUpscaler, Qualcomm.Snapdragon.SGSR.SGSRDebugOptions>(
+        Qualcomm.Snapdragon.SGSR.SGSRUpscalerUtils.Register<Qualcomm.Snapdragon.SGSR.SGSRDebugIUpscaler, Qualcomm.Snapdragon.SGSR.SGSRDebugOptions>(
             Qualcomm.Snapdragon.SGSR.SGSRDebugIUpscaler.UPSCALER_NAME);
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
     static void InitRuntime() =>
-        UpscalerRegistry.Register<Qualcomm.Snapdragon.SGSR.SGSRDebugIUpscaler, Qualcomm.Snapdragon.SGSR.SGSRDebugOptions>(
+        Qualcomm.Snapdragon.SGSR.SGSRUpscalerUtils.Register<Qualcomm.Snapdragon.SGSR.SGSRDebugIUpscaler, Qualcomm.Snapdragon.SGSR.SGSRDebugOptions>(
             Qualcomm.Snapdragon.SGSR.SGSRDebugIUpscaler.UPSCALER_NAME);
 }
 
@@ -80,11 +80,45 @@ namespace Qualcomm.Snapdragon.SGSR
             m_options = options;
         }
 
+#if UNITY_6000_6_OR_NEWER
+        // Unity 6.6 creates a shared descriptor and owns the lifetime of camera contexts.
+        public SGSRDebugIUpscaler() { }
+
+        public override IUpscalerContext CreateContext(UpscalerOptions options, Vector2Int displayResolution)
+        {
+            return new SGSRUpscalerContext<SGSRDebugIUpscaler>(
+                new SGSRDebugIUpscaler((SGSRDebugOptions)options), displayResolution);
+        }
+#endif
+
+#if UNITY_6000_7_OR_NEWER
+        // Keep the previous serialized name as the ID when upgrading existing pipeline assets.
+        public override string upscalerId => UPSCALER_NAME;
+#endif
+#if UNITY_6000_5_OR_NEWER
+        public override string name => UPSCALER_NAME;
+        public override bool isTemporal => true;
+        public override bool supportsSharpening => true;
+#else
         public override string GetName() => UPSCALER_NAME;
 
         // Always true so URP enables the TAA/upscale path regardless of active variant.
         public override bool IsTemporalUpscaler() => true;
+#endif
 
+#if UNITY_6000_6_OR_NEWER
+        public override void CalculateJitter(int frameIndex, float upscaleRatio, out Vector2 jitter, out bool allowScaling)
+        {
+            // Jitter is queried before a camera context is acquired. URP currently uses global options.
+            var options = SGSRUpscalerUtils.GetOptions<SGSRDebugOptions>();
+            var mode = SGSRDebugSettings.instance?.upscalerOverride ?? options?.defaultUpscaler ?? SGSRDebugUpscalerMode.ThreePassCS;
+            bool enabled = mode == SGSRDebugUpscalerMode.TwoPassFS
+                ? (options?.twoPass?.enableJitter ?? true)
+                : mode == SGSRDebugUpscalerMode.ThreePassCS && (options?.cs?.enableJitter ?? true);
+            jitter = SGSRUpscalerUtils.CalculateJitter(frameIndex, upscaleRatio, enabled);
+            allowScaling = false;
+        }
+#else
         public override void CalculateJitter(int frameIndex, out Vector2 jitter, out bool allowScaling)
         {
             if (m_activeMode == SGSRDebugUpscalerMode.Spatial || m_activeMode == SGSRDebugUpscalerMode.Bilinear)
@@ -114,8 +148,21 @@ namespace Qualcomm.Snapdragon.SGSR
             allowScaling = false;
         }
 
+#endif
+
         public override void RecordRenderGraph(RenderGraph renderGraph, ContextContainer frameData)
         {
+#if UNITY_6000_6_OR_NEWER
+            UpscalingIO io = frameData.Get<UpscalingIO>();
+            var context = (SGSRUpscalerContext<SGSRDebugIUpscaler>)io.context;
+            context.upscaler.m_options = (SGSRDebugOptions)io.options;
+            context.upscaler.m_jitterOffset = io.subpixelJitter;
+            context.upscaler.RecordCameraRenderGraph(renderGraph, frameData);
+        }
+
+        private void RecordCameraRenderGraph(RenderGraph renderGraph, ContextContainer frameData)
+        {
+#endif
             if (!EnsureInitialized())
             {
                 return;
@@ -165,10 +212,18 @@ namespace Qualcomm.Snapdragon.SGSR
             DisposeSpatial();
             DisposeTwoPass();
             DisposeThreePass();
+#if UNITY_6000_6_OR_NEWER
+            if (m_initialized)
+            {
+                SGSRDebugSettings.UnregisterAsDebugUpscaler();
+                SGSRDebugSettings.UnregisterDebugPanel();
+                m_initialized = false;
+            }
+#else
             m_initialized = false;
-
             SGSRDebugSettings.UnregisterAsDebugUpscaler();
             SGSRDebugSettings.UnregisterDebugPanel();
+#endif
         }
 
         // ---- initialization ----

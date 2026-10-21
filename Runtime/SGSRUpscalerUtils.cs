@@ -17,6 +17,39 @@ namespace Qualcomm.Snapdragon.SGSR
 {
     internal static class SGSRUpscalerUtils
     {
+        internal static void Register<TUpscaler, TOptions>(string name)
+            where TUpscaler : IUpscaler
+            where TOptions : UpscalerOptions
+        {
+#if UNITY_6000_7_OR_NEWER
+            UpscalerRegistry.Register<TUpscaler, TOptions>(name, name);
+#else
+            UpscalerRegistry.Register<TUpscaler, TOptions>(name);
+#endif
+        }
+
+#if UNITY_6000_6_OR_NEWER
+        internal static TOptions GetOptions<TOptions>() where TOptions : UpscalerOptions
+        {
+            // URP's Upscaling instance is internal. The pipeline asset exposes the same global options.
+            foreach (var options in UniversalRenderPipeline.asset.upscalerOptions)
+                if (options is TOptions typedOptions)
+                    return typedOptions;
+            return null;
+        }
+
+        internal static Vector2 CalculateJitter(int frameIndex, float upscaleRatio, bool enabled)
+        {
+            if (!enabled)
+                return Vector2.zero;
+
+            int phases = CalculateJitterPhaseCount(upscaleRatio);
+            return new Vector2(
+                HaltonSequence.Get(frameIndex % phases + 1, 2) - 0.5f,
+                HaltonSequence.Get(frameIndex % phases + 1, 3) - 0.5f);
+        }
+#endif
+
         /// <summary>
         /// Returns the number of Halton jitter phases for a given upscale ratio.
         /// Higher ratios use more phases to ensure full sub-pixel coverage

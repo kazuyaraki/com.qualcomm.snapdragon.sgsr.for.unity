@@ -67,21 +67,21 @@ namespace Qualcomm.Snapdragon.SGSR
 
             bool dirty = false;
 
-            if (spatial == null)
+            if (RequiresSettingsAsset(spatial, assetPath))
             {
-                spatial = CreateSubAsset<SGSROptions>(assetPath);
+                spatial = CreateSettingsAsset(assetPath, spatial);
                 dirty = true;
             }
 
-            if (twoPass == null)
+            if (RequiresSettingsAsset(twoPass, assetPath))
             {
-                twoPass = CreateSubAsset<SGSR2Options>(assetPath);
+                twoPass = CreateSettingsAsset(assetPath, twoPass);
                 dirty = true;
             }
 
-            if (cs == null)
+            if (RequiresSettingsAsset(cs, assetPath))
             {
-                cs = CreateSubAsset<SGSR2CSOptions>(assetPath);
+                cs = CreateSettingsAsset(assetPath, cs);
                 dirty = true;
             }
 
@@ -91,11 +91,33 @@ namespace Qualcomm.Snapdragon.SGSR
             }
         }
 
-        private static T CreateSubAsset<T>(string parentAssetPath) where T : ScriptableObject
+        private static bool RequiresSettingsAsset(ScriptableObject settings, string parentAssetPath)
         {
+            if (settings == null)
+                return true;
+#if UNITY_6000_5_OR_NEWER
+            return AssetDatabase.GetAssetPath(settings) == parentAssetPath;
+#else
+            return false;
+#endif
+        }
+
+        private static T CreateSettingsAsset<T>(string parentAssetPath, T existing) where T : ScriptableObject
+        {
+#if UNITY_6000_5_OR_NEWER
+            // Unity 6.5+ deletes UpscalerOptions sub-assets that are not directly in the
+            // pipeline's options list. Store debug variant settings separately so editing
+            // the pipeline cannot delete them. Clone existing values when upgrading.
+            var sub = existing != null ? Instantiate(existing) : CreateInstance<T>();
+            sub.hideFlags = HideFlags.None;
+            string path = System.IO.Path.ChangeExtension(parentAssetPath, null)
+                + ".SGSRDebug." + typeof(T).Name + ".asset";
+            AssetDatabase.CreateAsset(sub, AssetDatabase.GenerateUniqueAssetPath(path));
+#else
             var sub = ScriptableObject.CreateInstance<T>();
             sub.hideFlags = HideFlags.HideInHierarchy;
             AssetDatabase.AddObjectToAsset(sub, parentAssetPath);
+#endif
             return sub;
         }
 #endif // UNITY_EDITOR

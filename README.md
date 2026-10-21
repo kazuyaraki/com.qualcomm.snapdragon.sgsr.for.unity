@@ -25,6 +25,25 @@ This package provides three upscaling variants:
 - Unity 6 (6000.3.x) or later
 - Universal Render Pipeline (URP) 17.3.0 or later
 
+### Unity version compatibility
+
+Use the URP/Core packages supplied with your Editor. `ENABLE_UPSCALER_FRAMEWORK` is required on every version.
+
+| Editor | Integration |
+|---|---|
+| Unity 6.3–6.4 | Original options-based constructors and method interface. |
+| Unity 6.5 | Property-based upscaler interface. |
+| Unity 6.6 | Parameterless descriptors, per-camera contexts, and explicit jitter ratio. |
+| Unity 6.7 | Separate registered ID and display name; experimental beta support. |
+
+Validation on Apple M4 / Metal covers Editor rendering with two cameras, output resolution changes, camera cuts, and jitter toggles. Spatial and 3-pass CS output passed the image smoke checks. **2-pass FS produced nearly black RenderTexture output in this test, including on the unmodified Unity 6.3 package; its rendering correctness remains unverified.** Player builds, Android, and XR have not been validated by these compatibility checks.
+
+When upgrading a pipeline asset from Unity 6.3–6.4 to 6.5 or newer, check the selected upscaler and its saved options before using the inspector: Unity changed its serialized selection field, so the SGSR selection may fall back to a built-in filter. Keep the original asset in version control, reselect SGSR, and verify the option values. This package does not rewrite Unity's pipeline-asset serialization.
+
+The SGSR algorithms, shaders, render passes, and history managers are unchanged. Unity 6.6+ owns a separate SGSR renderer per camera context and releases it when the context expires or its output resolution changes. The previous upscaler names remain the serialized IDs in Unity 6.7.
+
+Starting with Unity 6.5, the Debug upscaler's three variant settings are saved as separate `*.SGSRDebug.*.asset` files next to the pipeline asset. Existing embedded values are copied when validated. Keep these files and their `.meta` files in version control with the pipeline asset; Unity's newer pipeline inspector removes unregistered `UpscalerOptions` sub-assets.
+
 ---
 
 ## Installation
@@ -55,6 +74,8 @@ https://github.com/SnapdragonGameStudios/com.qualcomm.snapdragon.sgsr.for.unity.
 ---
 
 ## Optional: SGSR v1 Render Pass Optimization
+
+This optional patch targets Unity 6.3–6.4. Do not apply it to Unity 6.5 or newer; the compatibility integration does not require changes to Unity packages.
 
 By default, Unity's `IUpscaler` framework requires an upscaler to declare itself "temporal" in order to be executed in the post-process pipeline. For SGSR v1 this is a technicality — it is a purely spatial upscaler, but it must return `IsTemporalUpscaler() == true` to activate the correct execution path. The side-effect is that Unity also schedules **CopyDepth** and **MotionVector** render passes, which are unnecessary for SGSR v1 and waste GPU time.
 
@@ -146,6 +167,8 @@ Open each URP pipeline asset that should use SGSR (e.g. via **Edit --> Project S
    - `SGSR 2.0 Temporal Upscaler (2-Pass FS)`
    - `SGSR 2.0 Temporal Upscaler (3-Pass CS)`
    - `SGSR Debug Upscaler`
+
+On Unity 6.7, set **Scaling Mode** to **Upscaling** and put the desired SGSR variant first in **Upscaler Priority**, then choose the Render Scale. The first supported entry in that list is selected.
 
 ### Step 3 — Configure SGSR options
 

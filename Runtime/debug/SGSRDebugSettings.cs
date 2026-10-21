@@ -39,6 +39,11 @@ namespace Qualcomm.Snapdragon.SGSR
 
         // Singleton — shared state readable from SGSRRendererFeature each frame
         private static SGSRDebugSettings s_Instance;
+#if UNITY_6000_6_OR_NEWER
+        // Unity can keep several camera contexts alive for the same upscaler.
+        private static int s_DebugUpscalerCount;
+        private static int s_DebugPanelCount;
+#endif
         public static SGSRDebugSettings instance => s_Instance;
 
         // ---- debug upscaler override ----
@@ -141,6 +146,10 @@ namespace Qualcomm.Snapdragon.SGSR
         /// </summary>
         internal static void RegisterAsDebugUpscaler(SGSRDebugUpscalerMode defaultMode)
         {
+#if UNITY_6000_6_OR_NEWER
+            if (s_DebugUpscalerCount++ > 0)
+                return;
+#endif
             if (s_Instance == null)
             {
                 return;
@@ -157,6 +166,10 @@ namespace Qualcomm.Snapdragon.SGSR
         /// </summary>
         internal static void UnregisterAsDebugUpscaler()
         {
+#if UNITY_6000_6_OR_NEWER
+            if (s_DebugUpscalerCount == 0 || --s_DebugUpscalerCount > 0)
+                return;
+#endif
             if (s_Instance == null)
             {
                 return;
@@ -167,6 +180,9 @@ namespace Qualcomm.Snapdragon.SGSR
 
         internal static void RegisterDebugPanel()
         {
+#if UNITY_6000_6_OR_NEWER
+            ++s_DebugPanelCount;
+#endif
             if (s_Instance != null)
             {
                 return;
@@ -252,6 +268,10 @@ namespace Qualcomm.Snapdragon.SGSR
 
         internal static void UnregisterDebugPanel()
         {
+#if UNITY_6000_6_OR_NEWER
+            if (s_DebugPanelCount == 0 || --s_DebugPanelCount > 0)
+                return;
+#endif
             if (s_Instance == null)
             {
                 return;

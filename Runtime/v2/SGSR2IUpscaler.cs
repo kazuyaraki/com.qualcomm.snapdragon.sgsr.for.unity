@@ -23,12 +23,12 @@ using UnityEditor;
 static class RegisterSGSR2
 {
     static RegisterSGSR2() =>
-        UpscalerRegistry.Register<Qualcomm.Snapdragon.SGSR.SGSR2IUpscaler, Qualcomm.Snapdragon.SGSR.SGSR2Options>(
+        Qualcomm.Snapdragon.SGSR.SGSRUpscalerUtils.Register<Qualcomm.Snapdragon.SGSR.SGSR2IUpscaler, Qualcomm.Snapdragon.SGSR.SGSR2Options>(
             Qualcomm.Snapdragon.SGSR.SGSR2IUpscaler.UPSCALER_NAME);
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
     static void InitRuntime() =>
-        UpscalerRegistry.Register<Qualcomm.Snapdragon.SGSR.SGSR2IUpscaler, Qualcomm.Snapdragon.SGSR.SGSR2Options>(
+        Qualcomm.Snapdragon.SGSR.SGSRUpscalerUtils.Register<Qualcomm.Snapdragon.SGSR.SGSR2IUpscaler, Qualcomm.Snapdragon.SGSR.SGSR2Options>(
             Qualcomm.Snapdragon.SGSR.SGSR2IUpscaler.UPSCALER_NAME);
 }
 
@@ -58,10 +58,41 @@ namespace Qualcomm.Snapdragon.SGSR
             m_options = options;
         }
 
+#if UNITY_6000_6_OR_NEWER
+        // Unity 6.6 creates a shared descriptor and owns the lifetime of camera contexts.
+        public SGSR2IUpscaler() { }
+
+        public override IUpscalerContext CreateContext(UpscalerOptions options, Vector2Int displayResolution)
+        {
+            return new SGSRUpscalerContext<SGSR2IUpscaler>(
+                new SGSR2IUpscaler((SGSR2Options)options), displayResolution);
+        }
+#endif
+
+#if UNITY_6000_7_OR_NEWER
+        // Keep the previous serialized name as the ID when upgrading existing pipeline assets.
+        public override string upscalerId => UPSCALER_NAME;
+#endif
+#if UNITY_6000_5_OR_NEWER
+        public override string name => UPSCALER_NAME;
+        public override bool isTemporal => true;
+        public override bool supportsSharpening => false;
+#else
         public override string GetName() => UPSCALER_NAME;
 
         public override bool IsTemporalUpscaler() => true;
+#endif
 
+#if UNITY_6000_6_OR_NEWER
+        public override void CalculateJitter(int frameIndex, float upscaleRatio, out Vector2 jitter, out bool allowScaling)
+        {
+            // Jitter is queried before a camera context is acquired. URP currently uses global options.
+            var options = SGSRUpscalerUtils.GetOptions<SGSR2Options>();
+            bool enabled = options?.enableJitter ?? true;
+            jitter = SGSRUpscalerUtils.CalculateJitter(frameIndex, upscaleRatio, enabled);
+            allowScaling = false;
+        }
+#else
         public override void CalculateJitter(int frameIndex, out Vector2 jitter, out bool allowScaling)
         {
             if (m_options.enableJitter)
@@ -80,8 +111,21 @@ namespace Qualcomm.Snapdragon.SGSR
             allowScaling = false;
         }
 
+#endif
+
         public override void RecordRenderGraph(RenderGraph renderGraph, ContextContainer frameData)
         {
+#if UNITY_6000_6_OR_NEWER
+            UpscalingIO io = frameData.Get<UpscalingIO>();
+            var context = (SGSRUpscalerContext<SGSR2IUpscaler>)io.context;
+            context.upscaler.m_options = (SGSR2Options)io.options;
+            context.upscaler.m_jitterOffset = io.subpixelJitter;
+            context.upscaler.RecordCameraRenderGraph(renderGraph, frameData);
+        }
+
+        private void RecordCameraRenderGraph(RenderGraph renderGraph, ContextContainer frameData)
+        {
+#endif
             if (!EnsureInitialized())
             {
                 return;
@@ -114,6 +158,10 @@ namespace Qualcomm.Snapdragon.SGSR
 
         public void Dispose()
         {
+#if UNITY_6000_6_OR_NEWER
+            if (m_renderPass != null)
+                SGSRDebugSettings.UnregisterDebugPanel();
+#endif
             CoreUtils.Destroy(m_convertMaterial);
             m_convertMaterial = null;
             CoreUtils.Destroy(m_upscaleMaterial);
@@ -123,7 +171,9 @@ namespace Qualcomm.Snapdragon.SGSR
             m_historyManager?.Dispose();
             m_historyManager = null;
 
+#if !UNITY_6000_6_OR_NEWER
             SGSRDebugSettings.UnregisterDebugPanel();
+#endif
         }
 
         // ---- private helpers ----
