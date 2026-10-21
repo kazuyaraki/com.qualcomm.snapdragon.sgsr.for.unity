@@ -1,0 +1,82 @@
+[
+  {
+    "file": "Runtime/v1/SGSRRenderPass.cs",
+    "unchanged": true,
+    "sha256": "0867062ace79e259465a08ac5f18a4eacc88e9aa5ce60e40c545f5e3dda294d0"
+  },
+  {
+    "file": "Runtime/v2/SGSR2CSHistoryManager.cs",
+    "unchanged": true,
+    "sha256": "11ad8ba119ed6484a1a956fa0a2f0093dfab267e447b42013892577a933b64ec"
+  },
+  {
+    "file": "Runtime/v2/SGSR2HistoryManager.cs",
+    "unchanged": true,
+    "sha256": "9c393c7cc91cfc3cceec8e2a14d1b5ab92661bd62797427b44ab8b2f8b5f7d89"
+  },
+  {
+    "file": "Runtime/v2/SGSR2CSRenderPass.cs",
+    "unchanged": true,
+    "sha256": "88c307780ade1d69124f60771c45db10d9eca58121b14396e4667a7fdbff374c"
+  },
+  {
+    "file": "Runtime/v2/SGSR2RenderPass.cs",
+    "unchanged": true,
+    "sha256": "18f5a6cd620050afcd7343c8f0113a6dd3918f2971e1649c176927959e0c7e5e"
+  },
+  {
+    "file": "Shaders/v1/SGSRShader.shader",
+    "unchanged": true,
+    "sha256": "edb3e2b65b56efacf6568d415b5ceac2df549b20dac4fd83c713e67f109bdc59"
+  },
+  {
+    "file": "Shaders/v1/sgsr.hlsl",
+    "unchanged": true,
+    "sha256": "d042f34b9f1999fdb824439f6d526095291aa17a460b747928becf580809bafb"
+  },
+  {
+    "file": "Shaders/v2/sgsr2_convert.hlsl",
+    "unchanged": true,
+    "sha256": "98c26d6ef427eb3f53ea351d5d90637cd13d9746cd64cbf00bea3fa584d27f12"
+  },
+  {
+    "file": "Shaders/v2/sgsr2_upscale.hlsl",
+    "unchanged": true,
+    "sha256": "6b9755b42ebb0d39a3e888ff168cf826c2eb31e56b1dfa8550ee0185e3d2d1c3"
+  },
+  {
+    "file": "Shaders/v2/sgsr2cs_common.hlsl",
+    "unchanged": true,
+    "sha256": "ffa63d4c4389601abf8ddfda01daa61b4520af1f13762da5ff94ce2ee15a2bc5"
+  },
+  {
+    "file": "Shaders/v2/SGSR2ConvertShader.shader",
+    "unchanged": true,
+    "sha256": "ff33ed2ff2f0c58d19cd9260c15e50c6cd19d9c4500fbe213aa8caff8a35d6d1"
+  },
+  {
+    "file": "Shaders/v2/SGSR2UpscaleShader.shader",
+    "unchanged": true,
+    "sha256": "c728b887ca4254a632a1aaa6dd484959d5540bb6f39d9df955e3c85bfe302704"
+  },
+  {
+    "file": "Shaders/v2/SGSR2CS_Sharpen.compute",
+    "unchanged": true,
+    "sha256": "a04d2292097bdba498ffd2f7d5602c1ebae133d116353f70304e418d39376512"
+  },
+  {
+    "file": "Shaders/v2/SGSR2CS_Activate.compute",
+    "unchanged": true,
+    "sha256": "441a2104163b54f632ff43e18107e98a470a0d32fcd32126095c2c207ccff278"
+  },
+  {
+    "file": "Shaders/v2/SGSR2CS_Convert.compute",
+    "unchanged": true,
+    "sha256": "dec5f9e58dda5a70b35b81f1db396729c9f6831738cead7ea26154be3aa05fea"
+  },
+  {
+    "file": "Shaders/v2/SGSR2CS_Upscale.compute",
+    "unchanged": true,
+    "sha256": "7115a1a23ea76b65837af1789b1960a6e7070c059333bedc2e103b58c3d90e16"
+  }
+]

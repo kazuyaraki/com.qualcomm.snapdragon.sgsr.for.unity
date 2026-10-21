@@ -1,0 +1,80 @@
+{
+  "date": "2026-10-21",
+  "platform": "macOS ARM64 / Apple M4 / Metal",
+  "upstreamCommit": "ab685c993ebd0f65a762c6e28f64f124c7f12532",
+  "compatibilityCommit": "2d3ab1ffe1d000578528c9d5411f1fbae8de824f",
+  "versions": [
+    {
+      "unity": "6000.3.26f1",
+      "compileAndStateChecksPassed": true,
+      "runtimeErrors": 0,
+      "imageChecksPassed": 25,
+      "imageChecksTotal": 35,
+      "failedVariants": [
+        "2pass",
+        "debug-2pass"
+      ],
+      "lifecycleChecks": [],
+      "settingsMigrationChecked": false
+    },
+    {
+      "unity": "6000.4.12f1",
+      "compileAndStateChecksPassed": true,
+      "runtimeErrors": 0,
+      "imageChecksPassed": 25,
+      "imageChecksTotal": 35,
+      "failedVariants": [
+        "2pass",
+        "debug-2pass"
+      ],
+      "lifecycleChecks": [],
+      "settingsMigrationChecked": false
+    },
+    {
+      "unity": "6000.5.11f1",
+      "compileAndStateChecksPassed": true,
+      "runtimeErrors": 0,
+      "imageChecksPassed": 25,
+      "imageChecksTotal": 35,
+      "failedVariants": [
+        "2pass",
+        "debug-2pass"
+      ],
+      "lifecycleChecks": [],
+      "settingsMigrationChecked": true
+    },
+    {
+      "unity": "6000.6.6f1",
+      "compileAndStateChecksPassed": true,
+      "runtimeErrors": 0,
+      "imageChecksPassed": 25,
+      "imageChecksTotal": 35,
+      "failedVariants": [
+        "2pass",
+        "debug-2pass"
+      ],
+      "lifecycleChecks": [
+        "Unused camera context expired while the other camera kept rendering",
+        "Re-enabled camera acquired a new context"
+      ],
+      "settingsMigrationChecked": true
+    },
+    {
+      "unity": "6000.7.0b5",
+      "compileAndStateChecksPassed": true,
+      "runtimeErrors": 0,
+      "imageChecksPassed": 25,
+      "imageChecksTotal": 35,
+      "failedVariants": [
+        "2pass",
+        "debug-2pass"
+      ],
+      "lifecycleChecks": [
+        "Unused camera context expired while the other camera kept rendering",
+        "Re-enabled camera acquired a new context"
+      ],
+      "settingsMigrationChecked": true
+    }
+  ],
+  "knownIssue": "2-pass FS produces nearly black RenderTexture output in this smoke test, also on unmodified Unity 6.3. The image assertions deliberately remain failed."
+}
