@@ -314,7 +314,7 @@ namespace Qualcomm.Snapdragon.SGSR
                         data.sceneColorOutput,
                         data.historyOutput,
                     };
-                    cmd.SetRenderTarget(mrts, new RenderTargetIdentifier(BuiltinRenderTextureType.None));
+                    cmd.SetRenderTarget(mrts, data.sceneColorOutput);
                     Blitter.BlitTexture(cmd, data.inputColor, new Vector4(1, 1, 0, 0), data.upscaleMaterial, 0);
 
                     // SetRenderFunc executes at render graph execution time, not recording time.
